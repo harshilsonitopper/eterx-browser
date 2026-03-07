@@ -1,0 +1,184 @@
+{
+    "title": "EterX Intelligence Report",
+    "subtitle": "Q4 2025 Market Analysis",
+    "author": "EterX Research Team",
+    "sections": [
+        {
+            "heading": "Executive Summary",
+            "type": "summary",
+            "content": "This report provides a comprehensive analysis of Q4 2025 market performance. Revenue grew by 18% quarter-over-quarter, driven by strong user adoption in the Asia-Pacific region."
+        },
+        {
+            "type": "kpi",
+            "kpis": [
+                {
+                    "value": "$1.4M",
+                    "label": "Revenue"
+                },
+                {
+                    "value": "35,000",
+                    "label": "Active Users"
+                },
+                {
+                    "value": "+18%",
+                    "label": "QoQ Growth"
+                },
+                {
+                    "value": "4.8/5",
+                    "label": "Satisfaction"
+                }
+            ]
+        },
+        {
+            "heading": "Revenue Analysis",
+            "type": "text",
+            "level": 1,
+            "content": "Revenue performance exceeded expectations across all segments.\n\n**Key highlights:**\n- North America contributed 45% of total revenue\n- Enterprise segment grew by 25%\n- SaaS recurring revenue reached $800K\n\nThe growth trajectory suggests strong momentum heading into 2026."
+        },
+        {
+            "heading": "Quarterly Revenue",
+            "type": "chart",
+            "chart_type": "bar",
+            "chart_data": {
+                "labels": [
+                    "Q1",
+                    "Q2",
+                    "Q3",
+                    "Q4"
+                ],
+                "datasets": [
+                    {
+                        "label": "Revenue ($K)",
+                        "data": [
+                            250,
+                            320,
+                            380,
+                            450
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "heading": "Financial Overview",
+            "type": "table",
+            "data": [
+                [
+                    "Metric",
+                    "Q1",
+                    "Q2",
+                    "Q3",
+                    "Q4"
+                ],
+                [
+                    "Revenue",
+                    "$250K",
+                    "$320K",
+                    "$380K",
+                    "$450K"
+                ],
+                [
+                    "Users",
+                    "12,000",
+                    "18,500",
+                    "25,000",
+                    "35,000"
+                ],
+                [
+                    "MRR",
+                    "$180K",
+                    "$220K",
+                    "$280K",
+                    "$340K"
+                ],
+                [
+                    "Churn",
+                    "3.2%",
+                    "2.8%",
+                    "2.1%",
+                    "1.9%"
+                ]
+            ]
+        },
+        {
+            "type": "callout",
+            "content": "Revenue growth is accelerating quarter over quarter, with Q4 showing the highest growth rate of 18%. Churn has decreased from 3.2% to 1.9%.",
+            "callout_type": "success"
+        },
+        {
+            "heading": "User Growth Trend",
+            "type": "chart",
+            "chart_type": "line",
+            "chart_data": {
+                "labels": [
+                    "Jan",
+                    "Feb",
+                    "Mar",
+                    "Apr",
+                    "May",
+                    "Jun",
+                    "Jul",
+                    "Aug",
+                    "Sep",
+                    "Oct",
+                    "Nov",
+                    "Dec"
+                ],
+                "datasets": [
+                    {
+                        "label": "Users",
+                        "data": [
+                            12000,
+                            13500,
+                            15000,
+                            16800,
+                            18500,
+                            20200,
+                            22000,
+                            24000,
+                            25000,
+                            28000,
+                            31000,
+                            35000
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "heading": "Market Distribution",
+            "type": "chart",
+            "chart_type": "pie",
+            "chart_data": {
+                "labels": [
+                    "North America",
+                    "Europe",
+                    "Asia Pacific",
+                    "LATAM",
+                    "MEA"
+                ],
+                "data": [
+                    45,
+                    22,
+                    20,
+                    8,
+                    5
+                ]
+            }
+        },
+        {
+            "type": "callout",
+            "content": "Asia Pacific is the fastest-growing region with 35% year-over-year growth. Strategic expansion into India and Southeast Asia is recommended.",
+            "callout_type": "info"
+        },
+        {
+            "type": "page_break"
+        },
+        {
+            "heading": "Strategic Recommendations",
+            "type": "text",
+            "level": 1,
+            "content": "Based on our analysis, we recommend the following strategic priorities:\n\n### Expand APAC Presence\nInvest in local partnerships and marketing to capitalize on the 35% growth rate.\n\n### Reduce Churn Further\nImplement proactive customer success programs targeting at-risk accounts.\n\n### Scale Enterprise\nLaunch dedicated enterprise sales team with vertical-specific solutions.\n\n### Product Innovation\nAccelerate AI feature development to maintain competitive advantage."
+        }
+    ]
+}

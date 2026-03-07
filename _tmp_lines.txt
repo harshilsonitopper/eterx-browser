@@ -1,0 +1,7 @@
+575: "            }\r"
+576: "\r"
+577: "            const contextMessage = `${ goalContext }\r"
+578: "CURRENT URL: ${ currentUrl }\r"
+579: "PAGE STATE: ${ pageLoadState } | TURN: ${ turn }/${ maxTurns }${ zeroClickDirective }${ actionPlanDirective }\r"
+580: "${ warnings }${ reflectionPrompt }${ pageAnalysisSection }\r"
+581: "## Interactive Elements (SOM IDs)\r"

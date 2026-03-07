@@ -1,0 +1,7 @@
+reportlab
+matplotlib
+python-docx
+openpyxl
+pandas
+pypdf
+Pillow

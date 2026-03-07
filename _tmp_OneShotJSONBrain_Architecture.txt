@@ -1,0 +1,981 @@
+ONE-SHOT JSON BRAIN
+
+The Last Architecture
+
+One AI call. Total intelligence. Infinite execution.
+
+Full JSON Schema  |  Execution Engine Design  |  Glass Box Safety  |  90-Day Plan
+
+
+
+THE INSIGHT:  Every browser agent today calls AI dozens of times per task — once per step, once per error, once per re-plan. This is slow, expensive, and unpredictable. The One-Shot JSON Brain inverts this: Gemini is called exactly ONCE, produces a complete intelligence artifact (the Task JSON), then goes offline. From that point, a deterministic local engine executes the full task — with error handling, fallbacks, and recovery — without touching AI again. The local engine becomes the intelligence.
+
+
+
+Today's agents  (broken model)
+
+User goal -> AI call -> 1 step -> AI call -> 1 step -> AI call -> error -> AI call -> retry -> AI call -> ...
+
+Result: 40+ AI calls per task. 30-60 seconds. Unpredictable. Breaks on any change.
+
+One-Shot JSON Brain  (new model)
+
+User goal -> 1 AI call -> complete Task JSON -> local engine executes -> done.
+
+Result: 1 AI call per task. 200ms execution. Deterministic. Parameterized forever.
+
+
+
+
+
+Part I: The Task JSON — Complete Schema
+
+This is the intelligence artifact. Every piece of knowledge the agent needs to complete any task, handle any error, and recover from any failure — encoded in one structured JSON object produced by a single Gemini call. The schema is designed so that the local execution engine needs ZERO intelligence of its own — it just follows the JSON.
+
+
+
+1.1  Top-Level Structure
+
+{
+
+  "schema_version": "2.0",
+
+  "task_id": "uuid-generated-on-creation",
+
+  "task_intent": "Create a Google Form with 3 questions about user feedback",
+
+  "target_domain": "forms.google.com",
+
+  "estimated_steps": 7,
+
+  "risk_level": "low"  // low | medium | high | critical,
+
+  "requires_human_approval": []  // step IDs that need human sign-off,
+
+  "parameters": {...}  // reusable variables (form name, question text, etc),
+
+  "context_hints": {...}  // what Gemini knows about this site,
+
+  "steps": [...]  // ordered array of Step objects,
+
+  "fallback_strategies": {...}  // global recovery plans by error class,
+
+  "success_criteria": {...}  // how to verify the whole task succeeded,
+
+  "template_signature": "hash of task structure for future reuse",
+
+}
+
+
+
+1.2  Step Object — Full Schema
+
+Every step is fully self-contained. The executor needs nothing else to run it.
+
+
+
+{
+
+  "step_id": "s01",
+
+  "label": "Navigate to Google Forms homepage",
+
+  "risk": "low"  // low steps execute silently. high/critical pause for approval,
+
+  "action": {
+
+    "type": "navigate"  // navigate | click | type | select | wait | verify | scroll | inject_js",
+
+    "target": {
+
+      "primary": "url:https://forms.google.com"  // first strategy,
+
+      "fallback_1": "semantic:Forms home button"  // if primary fails,
+
+      "fallback_2": "attention_field:0.85"  // use vision-based targeting if all else fails,
+
+    },
+
+    "value": "{{parameter.form_url}}"  // parameterized — works for any form URL,
+
+    "timing": {
+
+      "wait_for": "network_idle"  // network_idle | dom_stable | element_appears | custom_signal",
+
+      "timeout_ms": 8000,
+
+      "poll_interval_ms": 200,
+
+    },
+
+  },
+
+  "expected_state": {
+
+    "url_contains": "forms.google.com",
+
+    "element_present": "semantic:Blank form button",
+
+    "element_absent": "semantic:Error page heading",
+
+    "network_response": { "url_pattern": "/forms/", "status": 200 },
+
+  },
+
+  "on_success": "proceed_to:s02",
+
+  "on_failure": {
+
+    "retry_count": 2,
+
+    "retry_strategy": "same_action",
+
+    "then": "execute_fallback:f_navigation_failed",
+
+    "escalate_after_retries": "human_handoff"  // or: skip | abort | alternate_path",
+
+  },
+
+  "glass_box": {
+
+    "show_in_ui": true  // always visible to human in the action panel,
+
+    "label_for_human": "Opening Google Forms",
+
+    "pause_before_execute": false  // true for high/critical risk steps,
+
+    "highlight_element": true  // draw visible ring around element before acting,
+
+  },
+
+}
+
+
+
+1.3  Element Targeting — The Three-Layer Strategy
+
+Each target has 3 fallback layers. The executor tries them in order. If all 3 fail, it escalates. This is why the system works without re-calling AI — the fallback intelligence is pre-encoded.
+
+
+
+Layer
+
+Strategy
+
+How it works
+
+Primary
+
+Semantic ID
+
+Uses the a11y tree — role + name. Example: 'button:Blank form'. Matches 90% of cases. Most reliable because it matches intent, not implementation.
+
+Fallback 1
+
+DOM Attribute Pattern
+
+CSS-free attribute matching. Example: '[aria-label*=blank]' or '[data-action=create]'. Works when a11y tree is incomplete or wrong.
+
+Fallback 2
+
+Attention Field (Vision)
+
+Gemini Vision is called with confidence score threshold. Only used when layers 1+2 fail. Returns pixel coordinates, not element IDs.
+
+Emergency
+
+Network Oracle
+
+The step waits for the relevant API call to succeed instead of finding a UI element. Example: wait for POST /forms/create to return 200 before proceeding.
+
+
+
+1.4  Fallback Strategies Block
+
+Global error recovery plans pre-computed by Gemini. When a step fails beyond its local retry limit, the executor looks up the error class here and executes the recovery plan — still no AI call needed.
+
+
+
+"fallback_strategies": {
+
+  "navigation_failed": {
+
+    "description": "Page did not load or wrong URL reached",
+
+    "actions": [ { "type": "navigate", "target": "{{parameter.alternate_url}}" }, { "type": "wait", "wait_for": "network_idle" } ],
+
+    "then": "retry_from:s01",
+
+  },,
+
+  "element_not_found": {
+
+    "description": "Target element disappeared or never rendered",
+
+    "actions": [ { "type": "scroll", "direction": "down", "amount": 500 }, { "type": "wait", "wait_for": "dom_stable" } ],
+
+    "then": "retry_current_step",
+
+  },,
+
+  "auth_required": {
+
+    "description": "Login wall appeared mid-task",
+
+    "actions": [ { "type": "human_handoff", "message": "Please log in, then click Resume" } ],
+
+    "then": "retry_from:last_successful_step",
+
+  },,
+
+  "unexpected_modal": {
+
+    "description": "Dialog or overlay blocked interaction",
+
+    "actions": [ { "type": "press_key", "key": "Escape" }, { "type": "wait", "wait_for": "dom_stable" } ],
+
+    "then": "retry_current_step",
+
+}
+
+
+
+1.5  Parameters Block — Infinite Reusability
+
+Parameters make every Task JSON a reusable template. The same JSON for 'create a Google Form' works for ANY form, with any content, forever. Users just fill in the parameters — no new AI call needed.
+
+
+
+"parameters": {
+
+  "form_title": "Customer Feedback Survey"  // injected at {{parameter.form_title}},
+
+  "form_url": "https://forms.google.com",
+
+  "questions": [
+
+    { "text": "How satisfied are you?", "type": "multiple_choice", "options": ["1","2","3","4","5"] },,
+
+    { "text": "What can we improve?", "type": "paragraph" },
+
+  ],
+
+  "submit_button_label": "Submit",
+
+}
+
+
+
+POWER:  Once your system has 500 Task JSON templates stored, users can execute any common task instantly with ZERO Gemini calls. The entire intelligence is already in the template. Just fill parameters and run.
+
+
+
+1.6  Glass Box Safety Block
+
+Every step contains its own Glass Box metadata. The execution UI reads this to decide what to show, highlight, and pause on — giving humans full visibility and control without slowing down safe steps.
+
+
+
+"glass_box_config": {
+
+  "high_risk_step_ids": ["s05", "s08"]  // pause and show approval dialog,
+
+  "critical_step_ids": ["s09"]  // pause + show full action diff + require explicit confirm,
+
+  "always_highlight": true  // draw visible ring around any element before clicking,
+
+  "action_log_visible": true  // running log panel shows each step as it executes,
+
+  "highlight_color": "#3B82F6"  // blue ring around targeted elements,
+
+  "pause_message_template": "About to {{action}} {{element}}. Is this correct?",
+
+  "human_can_override_any_step": true  // user can click 'Skip' or 'Edit' on any step,
+
+}
+
+
+
+
+
+Part II: The One Gemini Call
+
+This is the entire prompt architecture for the single Gemini call. It must be engineered to produce a complete, valid, deeply intelligent Task JSON in one shot. Every token spent here saves dozens of future API calls.
+
+
+
+2.1  System Prompt
+
+PRINCIPLE:  The system prompt turns Gemini into a browser automation architect, not an assistant. It never asks 'what should I do next?' — it asks 'produce the complete blueprint for everything that needs to happen.'
+
+
+
+SYSTEM PROMPT:
+
+You are a Browser Task Architect. Your job is to analyze a user's goal and produce 
+a complete Task JSON that a deterministic execution engine can follow to completion 
+WITHOUT calling you again.
+
+Your Task JSON must be:
+- COMPLETE: every step fully specified including fallbacks
+- DEFENSIVE: anticipate every failure mode for each step
+- PARAMETERIZED: use {{parameter.x}} for any value that could change
+- RISK-ANNOTATED: label each step low/medium/high/critical
+- SITE-AWARE: use your knowledge of the target site's DOM patterns
+
+You have deep knowledge of web application patterns:
+- Google Workspace (Forms, Docs, Sheets, Gmail, Drive)
+- E-commerce flows (product search, cart, checkout)
+- Social platforms (post creation, profile editing)
+- SaaS dashboards (settings, data entry, exports)
+- Authentication flows (OAuth, 2FA, SSO)
+
+CRITICAL RULES:
+1. Never produce a step that says "find the right element" - be specific about targeting
+2. Every step must have at least 2 fallback strategies
+3. Steps accessing financial data, sending emails, or making purchases = risk:critical
+4. Steps that modify/delete data = risk:high
+5. Steps that only read or navigate = risk:low
+6. Produce the FULL JSON in one response. Do not summarize. Do not truncate.
+
+Respond ONLY with valid JSON. No explanation. No markdown. No preamble.
+
+
+
+2.2  User Turn Structure
+
+The user turn gives Gemini all available context so it can produce the richest possible JSON on the first try.
+
+
+
+USER TURN:
+
+GOAL: "{{user_goal_text}}"
+TARGET_SITE: "{{detected_domain}}"
+CURRENT_URL: "{{current_page_url}}"
+
+SITE_CONTEXT (from your knowledge base for this domain):
+{{site_knowledge_entry_or_UNKNOWN}}
+
+PAST_TEMPLATES (similar tasks this system has executed before):
+{{top_3_matching_template_signatures_or_NONE}}
+
+CONSTRAINTS:
+- Max steps: 20
+- Risk ceiling: {{user_preference: low|medium|high|critical}}
+- Human approval required for: {{user_defined_risk_threshold}}
+- Parameters to expose: {{user_specified_params_or_AUTO_DETECT}}
+
+OUTPUT SCHEMA: (full JSON schema definition here)
+{{task_json_schema_v2}}
+
+
+
+2.3  Response Validation Pipeline
+
+After Gemini responds, before execution begins, run this 5-stage local validation pipeline. If any stage fails, correct locally without calling Gemini again.
+
+
+
+Stage
+
+Check
+
+On Fail
+
+Tool
+
+1
+
+JSON Schema Validation
+
+Verify all required fields exist and types are correct
+
+Reject and re-prompt with error (this is the ONLY allowed 2nd call)
+
+2
+
+Step Graph Validation
+
+Verify all on_success/on_failure step references actually exist
+
+Auto-fix: add missing steps as stubs or reassign to nearest valid step
+
+3
+
+Parameter Resolution
+
+Verify all {{parameter.x}} references exist in parameters block
+
+Auto-fix: add parameter stubs with empty values, flag for user fill
+
+4
+
+Risk Classification
+
+Verify no financial/deletion/send actions are marked low risk
+
+Auto-upgrade: escalate risk level, add human approval flag
+
+5
+
+Fallback Completeness
+
+Every step has at least 1 fallback and 1 escalation path
+
+Auto-inject: add generic fallback templates from fallback library
+
+
+
+
+
+Part III: The Execution Engine
+
+The engine that reads the Task JSON and runs it. This is the intelligence of the system — it must handle every edge case, error, and branching condition using only the JSON. No AI. No human. Just deterministic logic.
+
+
+
+3.1  Engine Architecture
+
+
+
+ORCHESTRATOR
+
+TaskRunner — reads step graph, maintains execution pointer, handles branching, retries, and escalation
+
+ACTION DISPATCHER
+
+Translates step action types into CDP commands. navigate -> Page.navigate, click -> element resolution + Input.dispatchMouseEvent, type -> value injection + events
+
+ELEMENT RESOLVER
+
+Tries targeting strategies in order: a11y semantic -> DOM attribute -> attention field -> network oracle. Returns resolved element or throws typed error.
+
+STATE VERIFIER
+
+After each action: checks expected_state block. Compares actual DOM + network state to expected. Returns: success | soft_fail | hard_fail
+
+FALLBACK ENGINE
+
+On failure: reads on_failure block, executes retry strategy, then looks up global fallback_strategies, then escalates to human handoff or abort
+
+GLASS BOX UI DRIVER
+
+Reads glass_box block per step. Updates action panel, draws element highlights via CDP overlay, triggers approval dialogs, logs all actions with timestamps
+
+TEMPLATE LIBRARY
+
+Stores validated Task JSONs indexed by template_signature and intent embedding. On new tasks: find nearest template, fill parameters, skip AI call entirely
+
+
+
+3.2  Execution Loop — Pseudocode
+
+function executePlan(task_json):
+  steps = task_json.steps  //  ordered map by step_id
+  current = steps["s01"]
+  execution_log = []
+
+  while current != null:
+    // 1. Glass Box: show action in UI, highlight element, pause if needed
+    glass_box_driver.announce(current)
+    if current.glass_box.pause_before_execute:
+      await human_approval(current)  // blocks until user clicks Approve/Skip/Edit
+
+    // 2. Resolve target element
+    element = null
+    for strategy in [primary, fallback_1, fallback_2, emergency]:
+      element = element_resolver.try(current.action.target[strategy])
+      if element: break
+    if !element: throw ElementNotFoundError(current.step_id)
+
+    // 3. Execute action
+    result = action_dispatcher.execute(current.action.type, element, current.action.value)
+
+    // 4. Verify expected state
+    state_ok = state_verifier.check(current.expected_state, timeout=current.action.timing.timeout_ms)
+
+    // 5. Handle result
+    if state_ok:
+      execution_log.push({ step: current.step_id, status: "success" })
+      current = steps[current.on_success]   // advance to next step
+    else:
+      retries_left = current.on_failure.retry_count - retry_count_for_step
+      if retries_left > 0:
+        current = retry(current, current.on_failure.retry_strategy)
+      else:
+        fallback = fallback_engine.get(classify_error(result))
+        if fallback.escalate == "human_handoff":
+          await human_handoff(current, fallback.message)
+        else:
+          execute_fallback_plan(fallback)
+          current = steps[fallback.then]   // jump to recovery step
+
+  return { status: "complete", log: execution_log }
+
+
+
+3.3  Template Library — How Zero-AI Execution Works
+
+This is the compounding flywheel. Every successfully executed task becomes a template that powers all future similar tasks.
+
+
+
+Task completes successfully  Engine records the full execution trace — which fallbacks were used, which element selectors worked, actual timing data.
+
+Template stored with signature  task.template_signature (hash of the step structure) + intent embedding stored in vector DB.
+
+New user goal arrives  Intent is embedded and compared to all stored templates. If cosine similarity > 0.88 — it's the same task class.
+
+Parameters filled, engine runs  User fills parameter values (form name, email text, product to search). Engine executes the template. Zero Gemini calls.
+
+After 6 months:  Your system has 1,000+ templates. 80%+ of user tasks need no AI at all. The system is effectively free to run and 100x faster than any AI-driven agent.
+
+
+
+THE MOAT:  The template library is your competitive advantage. It grows automatically, requires no labeling, and makes your system faster AND cheaper over time while competitors pay more per task every day.
+
+
+
+
+
+Part IV: Glass Box Safety System
+
+The Glass Box system makes the agent fully transparent and human-controllable without slowing it down. Low-risk steps execute instantly while humans watch. High-risk steps pause for explicit approval.
+
+
+
+4.1  Risk Classification Engine
+
+
+
+Risk Level
+
+Behavior
+
+Example Steps
+
+Visual Indicator
+
+LOW
+
+Execute immediately
+
+Navigate, scroll, read content
+
+Blue highlight ring. Step logged silently.
+
+MEDIUM
+
+Execute + brief notification
+
+Fill text field, click non-destructive button
+
+Blue ring + action flash in side panel.
+
+HIGH
+
+Pause 2s + show action
+
+Submit form, click Delete, post content
+
+Orange ring + approval banner with 2s countdown. Human can cancel.
+
+CRITICAL
+
+Full stop. Require explicit approval.
+
+Send email, make purchase, transfer data, delete account
+
+Red ring + full modal. Shows exactly what will happen. 'Approve' and 'Cancel' only.
+
+
+
+4.2  What the Human Sees
+
+
+
+Action Panel (always visible):  Scrolling log of every step the agent has taken or is about to take. Plain English: 'Clicked Blank Form button', 'Typing form title...'
+
+Element Highlight:  Before every click, a colored ring appears around the target element in the real browser. Human sees exactly what will be clicked before it happens.
+
+Step Preview:  For the next pending step, the panel shows: what action, what element, what value will be typed. Human has full foreknowledge.
+
+One-Click Override:  At any moment, human can click 'Pause', 'Skip this step', 'Edit value', or 'Stop entirely'. Agent holds state and resumes cleanly.
+
+Approval Dialog (high/critical):  Full screen overlay showing: 'About to send this email to john@example.com with subject X. This cannot be undone.' Approve / Cancel / Edit.
+
+
+
+
+
+Part V: 90-Day Build Plan
+
+Built in 3 phases. Each phase is independently useful — ship Phase 1 and you already have a product that beats everything on the market.
+
+
+
+PHASE 1  /  DAYS 1-30
+
+Core: JSON Schema + Execution Engine + Glass Box
+
+Ship a working product. One Gemini call. Deterministic execution. Human visibility.
+
+
+
+Day
+
+System
+
+Engineering Tasks
+
+Deliverable
+
+1-3
+
+Task JSON Schema v1
+
+Define complete JSON schema. All field types, enums, nested objects. Write JSON Schema spec file. Build schema validator using AJV.
+
+task_schema.json v1
+
+4-6
+
+Gemini Prompt Engineering
+
+Write and iterate system prompt. Test against 20 diverse goals. Measure: does output pass schema validation first try? Target: 90%+ pass rate.
+
+Prompt v1 + test suite
+
+7-9
+
+CDP Action Dispatcher
+
+Implement all action types: navigate, click, type, select, scroll, wait, press_key. Each wraps CDP calls with error typing.
+
+ActionDispatcher v1
+
+10-12
+
+Element Resolver v1
+
+Implement layer 1 (semantic a11y) + layer 2 (DOM attribute). Test on 30 pages. Measure: what % of steps resolve on layer 1 alone?
+
+ElementResolver v1
+
+13-15
+
+State Verifier
+
+Implement expected_state checking: URL, element present/absent, network response status. Timeout handling. Return typed pass/fail.
+
+StateVerifier v1
+
+16-18
+
+Orchestrator v1
+
+Build main execution loop. Step graph traversal. Retry logic. on_success/on_failure branching. Fallback strategy lookup.
+
+TaskOrchestrator v1
+
+19-21
+
+Glass Box UI v1
+
+Build side panel component. Step log. Element highlight via CDP DOM overlay. Low/medium risk visual indicators.
+
+GlassBoxUI v1
+
+22-24
+
+Approval Dialogs
+
+High risk: banner with countdown. Critical risk: full modal with action summary. One-click approve/cancel/edit flow.
+
+ApprovalSystem v1
+
+25-27
+
+End-to-End Integration
+
+Wire everything: goal input -> Gemini call -> JSON -> validate -> execute -> Glass Box UI. Test: Google Forms, web forms, search.
+
+Full pipeline v1
+
+28-30
+
+Phase 1 Benchmark
+
+Run 50 tasks. Measure: Gemini calls per task, success rate, human interventions, execution time. Fix top 5 failure modes.
+
+Phase 1 benchmark
+
+
+
+PHASE 2  /  DAYS 31-60
+
+Intelligence: Template Library + Advanced Fallbacks + Vision Layer
+
+Make the system learn and become faster with every task executed.
+
+
+
+Day
+
+System
+
+Engineering Tasks
+
+Deliverable
+
+31-34
+
+Template Library Core
+
+TaskBytecode store with SQLite. Record validated executions. Index by template_signature + intent embedding (using Gemini embedding API).
+
+TemplateLibrary v1
+
+35-38
+
+Intent Matching Engine
+
+Embed incoming goals. Query template library. Cosine similarity matching. Threshold tuning (target: 0.88+ = same template class).
+
+IntentMatcher v1
+
+39-42
+
+Zero-AI Execution Path
+
+If intent matches template: fill parameters, execute template directly. Measure: what % of tasks skip Gemini after 200 template executions?
+
+Zero-AI path live
+
+43-46
+
+Element Resolver Layer 3
+
+Integrate Gemini Vision for attention field targeting. Call only when layers 1+2 fail. Cache vision results per page+step combination.
+
+ElementResolver v3
+
+47-50
+
+Network Oracle Fallback
+
+Enable CDP Network domain. For emergency targeting: wait for API call success instead of UI element. Define network signal patterns per site.
+
+NetworkOracle v1
+
+51-54
+
+Fallback Library Expansion
+
+Build 30 pre-written fallback strategy templates covering every common error class. Auto-inject into Task JSONs that are missing coverage.
+
+FallbackLibrary v1
+
+55-57
+
+Parameterization Engine
+
+Auto-detect values in user goals that should become parameters. Suggest parameter schema to user before execution. Improve template reusability.
+
+AutoParameterizer
+
+58-60
+
+Phase 2 Benchmark
+
+Run 150 tasks (100 templated, 50 new). Measure: Gemini calls per task (target: 0.2 avg), template hit rate, zero-AI execution rate.
+
+Phase 2 benchmark
+
+
+
+PHASE 3  /  DAYS 61-90
+
+Scale: Site Knowledge Base + Commercial Safety + API Layer
+
+Make it production-ready, safe enough for commercial use, and accessible via API.
+
+
+
+Day
+
+System
+
+Engineering Tasks
+
+Deliverable
+
+61-64
+
+Site Knowledge Profiles
+
+Build structured knowledge profiles for top 20 sites (Google Workspace, GitHub, Shopify, etc). Encode: element patterns, auth flows, common task shapes.
+
+SiteKnowledgeDB v1
+
+65-68
+
+Knowledge-Augmented Prompts
+
+Inject matching site profile into Gemini prompt context. Measure: does site knowledge increase JSON quality score on first generation?
+
+Augmented prompts
+
+69-72
+
+Commercial Safety Hardcoding
+
+Permanent overrides regardless of JSON: financial transactions always critical, bulk sends always critical, data deletion always critical. Cannot be overridden by prompt.
+
+Safety layer v1
+
+73-75
+
+Audit Log System
+
+Immutable append-only log of every action taken by the agent. Timestamp, step ID, element targeted, value typed, outcome. Export as CSV/JSON.
+
+AuditLog v1
+
+76-78
+
+Task JSON Public API
+
+REST API: POST /task/generate (returns Task JSON), POST /task/execute (runs JSON), GET /task/:id/status. Auth + rate limiting.
+
+Public API v1
+
+79-82
+
+Template Marketplace Foundation
+
+Allow users to publish parameterized templates. Tag by site and task type. Search and clone. Community-built template library.
+
+Template marketplace
+
+83-86
+
+Performance Optimization
+
+Profile execution bottlenecks. Parallel step pre-fetching where steps are independent. CDP connection pooling. Target: sub-1s for templated tasks.
+
+Optimized executor
+
+87-90
+
+Final Benchmark
+
+200-task suite across all domains. Primary metrics: Gemini calls/task, success rate, execution time, safety incidents. Publish full results.
+
+Final benchmark
+
+
+
+
+
+Part VI: Why This Architecture Wins
+
+
+
+Property
+
+All Competitors
+
+One-Shot JSON Brain
+
+Why It Matters
+
+AI calls per task
+
+20-60 calls
+
+1 call (then 0)
+
+100x cheaper. Scales to millions of tasks.
+
+Execution speed (known task)
+
+30-90 seconds
+
+Under 1 second
+
+Feels instant. Real-time product UX.
+
+Execution speed (new task)
+
+30-90 seconds
+
+3-8 seconds
+
+Still 10x faster with full intelligence.
+
+Predictability
+
+Non-deterministic
+
+Fully deterministic
+
+Same task = same result every time.
+
+Improves over time?
+
+No (same model)
+
+Yes (more templates)
+
+Gets faster and cheaper with every task.
+
+Human safety model
+
+None or manual
+
+Glass Box built-in
+
+Commercially deployable. Enterprise-safe.
+
+Can work offline?
+
+Never
+
+Yes (from templates)
+
+No AI dependency for known tasks.
+
+Error recovery
+
+Re-call AI and hope
+
+Pre-planned fallbacks
+
+Recovery is deterministic and fast.
+
+Reusability
+
+Zero (one-use)
+
+100% parameterized
+
+One template = infinite task variations.
+
+Understandability
+
+Black box
+
+Human-readable JSON
+
+Auditable, debuggable, editable by users.
+
+
+
+THE ARCHITECTURE IN ONE SENTENCE
+
+Gemini thinks once. The JSON remembers forever. The engine executes at machine speed. The human always sees everything.
+
+This is not a faster browser agent. It is a different category of system.
+

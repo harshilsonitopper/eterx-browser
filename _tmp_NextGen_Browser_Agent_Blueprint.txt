@@ -1,0 +1,644 @@
+NEXT-GEN BROWSER AGENT
+
+Architecture & Development Blueprint
+
+10,000x Capability Roadmap — Gemini-Powered Chromium Agent
+
+Deep Architecture Plan  |  Phase-by-Phase  |  Daily Execution
+
+
+
+1. Vision & Target Capabilities
+
+The goal is to build a browser agent that doesn't just automate clicks — it genuinely understands web interfaces, plans multi-step tasks, recovers from failure, and completes complex real-world workflows autonomously. Below is the capability gap between where you are today and the 10,000x target.
+
+
+
+Current State (v1)
+
+Target State (10,000x)
+
+X  Fails on simple form fills
+
+checkmark  Handles any form — dropdowns, dynamic fields, CAPTCHAs
+
+X  Single-shot Gemini call per action
+
+checkmark  Multi-step hierarchical planning with sub-agents
+
+X  No memory between sessions
+
+checkmark  Persistent memory: sites, preferences, past tasks
+
+X  No error recovery
+
+checkmark  Detects failure, retries with new strategy automatically
+
+X  Raw HTML or screenshot only
+
+checkmark  Fused: screenshot + accessibility tree + DOM semantics
+
+X  No task decomposition
+
+checkmark  Breaks complex goals into atomic verified steps
+
+X  No state tracking
+
+checkmark  Full task graph: knows what's done, pending, failed
+
+X  Can't handle JS-heavy SPAs
+
+checkmark  Waits for dynamic content, understands React/Vue state
+
+X  No cross-tab coordination
+
+checkmark  Orchestrates multiple tabs/windows as one workflow
+
+X  No human handoff
+
+checkmark  Knows when to pause and ask the user for input
+
+
+
+2. Core Architecture
+
+The agent is structured as 6 interconnected layers. Each layer has a single responsibility and communicates through well-defined interfaces. This separation lets you upgrade each layer independently.
+
+
+
+Layer 6 — Orchestrator / Goal Manager
+
+Accepts high-level user goals. Maintains task graph. Routes to Planner.
+
+Layer 5 — Task Planner (Gemini)
+
+Decomposes goals into ordered steps. Re-plans on failure. Uses chain-of-thought.
+
+Layer 4 — Page Understanding
+
+Fuses screenshot + a11y tree + DOM. Produces semantic page map.
+
+Layer 3 — Action Engine
+
+Executes clicks, types, scrolls, waits. Validates success after each action.
+
+Layer 2 — Memory & State
+
+Session memory, site knowledge base, task history. Persisted to disk.
+
+Layer 1 — Chromium / CDP Interface
+
+Raw browser control via Chrome DevTools Protocol. Tab management, network interception.
+
+
+
+2.1  Layer 4: Page Understanding — The Key Unlock
+
+WHY THIS MATTERS: This is the #1 reason current agents fail. They feed Gemini bad page representations. Fix this first and everything else gets easier.
+
+
+
+You need to fuse 3 data sources into one unified page representation before calling Gemini:
+
+Visual: Screenshot (visual context)
+
+Use Chromium's Page.captureScreenshot via CDP
+
+Annotate the screenshot: draw bounding boxes over interactive elements
+
+Number each element so Gemini can reference them as [1], [2], [3]...
+
+A11y Tree: Accessibility Tree (semantic structure)
+
+CDP: Accessibility.getFullAXTree()
+
+This gives you role, name, value for every element — far better than raw HTML
+
+Filter out invisible/disabled nodes to reduce noise
+
+DOM: DOM Snapshot (structural info)
+
+Use DOM.getDocument() + CSS.getMatchedStylesForNode() for layout hints
+
+Extract: tag, id, class, placeholder, aria-label, data attributes
+
+Build a compressed element map: { id: 42, tag: 'input', label: 'Email', type: 'email' }
+
+
+
+Gemini prompt structure for page understanding:
+
+PROMPT TEMPLATE: Here is the page screenshot with numbered elements. Here is the element map: [...]. Here is the current task step: [STEP]. Which element should I interact with, and what action should I take? Respond with: {elementId, action, value, confidence}.
+
+
+
+2.2  Layer 5: Task Planner — Hierarchical Decomposition
+
+The planner takes a high-level goal and produces a deterministic task graph. Each node in the graph is an atomic, verifiable action.
+
+Structure: Goal → Sub-goals → Steps → Atomic Actions (4-level hierarchy)
+
+Schema: Each step has: description, success condition, rollback action, max retries
+
+Verification: After each step completes, verify success before moving on
+
+Recovery: On failure: re-plan with failure context fed back into Gemini
+
+
+
+Example task graph for 'Create a Google Form':
+
+TASK DECOMPOSITION: Goal → [Navigate to forms.google.com] → [Click '+ Blank'] → [Wait for editor to load] → [Click title field] → [Type form title] → [Add question] → [Set question type] → [Click Save]. Each step verified before proceeding.
+
+
+
+2.3  Layer 3: Action Engine — Reliable Execution
+
+The action engine wraps all CDP commands with retry logic, smart waiting, and post-action verification.
+
+Clicking: Never click by CSS selector alone — use element center coordinates from bounding box
+
+Typing: After typing, verify the value is actually in the field using DOM query
+
+Navigation: Wait for network idle AND DOM stable before declaring a navigation complete
+
+Dynamic content: Use MutationObserver via CDP to detect when dynamic content appears
+
+Shadow DOM: Shadow DOM support: use CDP's pierce query mode for web components
+
+
+
+2.4  Layer 2: Memory & State Management
+
+Task State: Task State: Current step index, completed steps, failed steps, retry count
+
+Session: Session Memory: Logged-in status per domain, cookies, auth tokens
+
+Site KB: Site Knowledge Base: Known element patterns per domain (e.g. 'Google Forms new button is always class xyz')
+
+Long-term: Long-term Memory: Past task outcomes stored in SQLite/vector DB for retrieval
+
+
+
+3. Technology Stack
+
+Component
+
+Technology
+
+Why
+
+Browser Control
+
+Chrome DevTools Protocol (CDP)
+
+Direct, low-level control. No Selenium lag.
+
+AI Model
+
+Gemini 2.0 Flash / 2.5 Pro
+
+Multimodal. Fast Flash for actions, Pro for planning.
+
+Agent Orchestration
+
+Custom TypeScript/Python orchestrator
+
+Full control over retry, state, planning logic.
+
+Page Parsing
+
+CDP Accessibility.getFullAXTree()
+
+Semantic elements, not fragile CSS selectors.
+
+Screenshot Annotation
+
+Sharp.js or Pillow + canvas
+
+Draw element bounding boxes with numbers.
+
+Memory / State
+
+SQLite + optional ChromaDB (vectors)
+
+Fast, local, persistent. No external deps.
+
+Task Queue
+
+BullMQ (Redis-backed) or in-process queue
+
+Handles complex multi-step task flows.
+
+Error Monitoring
+
+Custom error taxonomy + Gemini analysis
+
+Classify failures and pick recovery strategy.
+
+Testing
+
+Playwright test suite for regression
+
+Run 50+ task scenarios automatically.
+
+Logging
+
+Structured JSON logs per task step
+
+Debug exactly where the agent failed.
+
+
+
+PHASE 1  —  DAYS 1–7
+
+Foundation: Page Understanding + Reliable Actions
+
+Fix the core perception and execution problems that cause simple tasks to fail
+
+
+
+Day
+
+Focus
+
+Tasks
+
+Deliverable
+
+Day 1
+
+CDP Deep Integration
+
+Set up full CDP connection. Implement Page.captureScreenshot, Accessibility.getFullAXTree, DOM.getDocument. Build element ID mapping.
+
+ElementMap builder
+
+Day 2
+
+Screenshot Annotation
+
+Draw numbered bounding boxes on screenshot using Sharp.js/Pillow. Number all interactive elements. Generate annotated_screenshot + element_manifest JSON.
+
+Annotated screenshots
+
+Day 3
+
+Semantic Page Fusion
+
+Merge a11y tree + DOM attributes + bounding boxes into unified PageState object. Filter noise (hidden, disabled elements). Compress to fit Gemini context.
+
+PageState module
+
+Day 4
+
+Gemini Action Prompting
+
+Design structured prompt: annotated screenshot + element manifest + current step. Parse Gemini response: {elementId, action, value}. Add confidence threshold.
+
+GeminiActionAgent
+
+Day 5
+
+Robust Action Engine
+
+Replace fragile selectors with coordinate-based clicks. Add post-action DOM diff to verify changes. Implement smart wait: network idle + DOM stable.
+
+ActionEngine v2
+
+Day 6
+
+Error Detection
+
+Detect: element not found, navigation failed, value not accepted, timeout. Build ErrorClassifier. Log structured failure reports per step.
+
+ErrorClassifier
+
+Day 7
+
+Integration Test
+
+End-to-end test: create a Google Form, fill a web form, Google search + click. Measure success rate. Fix top 3 failure modes.
+
+Test suite v1
+
+
+
+PHASE 2  —  DAYS 8–14
+
+Task Planning: Hierarchical Decomposition & State Machine
+
+Build the brain — the system that plans, tracks progress, and recovers from failure
+
+
+
+Day
+
+Focus
+
+Tasks
+
+Deliverable
+
+Day 8
+
+Task Graph Schema
+
+Design TaskGraph data structure: nodes (steps), edges (dependencies), status per node. Define: Step = { id, description, action, successCondition, rollback, maxRetries }.
+
+TaskGraph schema
+
+Day 9
+
+Gemini Planner
+
+Prompt Gemini to decompose a user goal into ordered TaskGraph JSON. Few-shot examples for common tasks. Parse + validate the response.
+
+PlannerAgent
+
+Day 10
+
+Orchestrator Engine
+
+Build main orchestration loop: read next step → execute → verify → advance or retry. Maintain state across steps. Handle max retries.
+
+Orchestrator v1
+
+Day 11
+
+Re-Planning on Failure
+
+On step failure: capture current page state + failure reason → send to Gemini for revised plan. Inject failure context into re-plan prompt.
+
+Re-planner
+
+Day 12
+
+Success Verification
+
+For each step type, build a verifier: form field filled? page navigated? button clicked and UI changed? DOM-based assertion after each action.
+
+Verifier library
+
+Day 13
+
+Memory Layer
+
+Persist: session auth state, task history, site-specific element patterns. SQLite schema. On new task: retrieve relevant past context for the domain.
+
+MemoryStore
+
+Day 14
+
+Complex Task Test
+
+Test: book a restaurant, create a GitHub issue, fill a multi-page form, schedule a Google Meet. Measure success. Identify planning failure patterns.
+
+Complex task suite
+
+
+
+PHASE 3  —  DAYS 15–21
+
+Advanced Capabilities: Multi-Tab, Vision, Human Handoff
+
+10x the agent's capabilities with cross-tab orchestration and intelligent escalation
+
+
+
+Day
+
+Focus
+
+Tasks
+
+Deliverable
+
+Day 15
+
+Multi-Tab Orchestration
+
+Extend CDP to manage multiple tabs. Assign tasks to tabs. Synchronize state across tabs. Handle tab open/close during workflow.
+
+MultiTabManager
+
+Day 16
+
+Dynamic Content Handling
+
+Implement MutationObserver injection to wait for specific DOM changes. Handle infinite scroll, lazy load, React state changes, modals appearing.
+
+DynamicWaiter
+
+Day 17
+
+CAPTCHA & Auth Handling
+
+Detect CAPTCHA presence. Pause + notify user. Resume after human solve. Handle OAuth flows, 2FA prompts. Store session cookies securely.
+
+AuthHandler
+
+Day 18
+
+Human Handoff Protocol
+
+Agent detects: low confidence, repeated failure, sensitive action needed. Sends structured handoff request to user UI. Resumes cleanly after human input.
+
+HandoffProtocol
+
+Day 19
+
+Site Knowledge Base
+
+Auto-learn element patterns per domain after successful tasks. Store: { domain, task_type, element_patterns, success_sequence }. Use on next visit.
+
+SiteKnowledgeBase
+
+Day 20
+
+Gemini 2.5 Pro Planning
+
+Upgrade complex task planning to Gemini 2.5 Pro with extended thinking. Use Flash for fast action selection, Pro for re-planning and complex decomposition.
+
+Dual-model routing
+
+Day 21
+
+Full System Test
+
+Run 50-task benchmark suite across: Google Workspace, GitHub, e-commerce, forms, bookings, research tasks. Target 80%+ success rate.
+
+Benchmark v1
+
+
+
+PHASE 4  —  DAYS 22–30
+
+Polish, Speed & 10,000x Benchmark
+
+Optimize performance, reduce latency, and validate true capability at scale
+
+
+
+Day
+
+Focus
+
+Tasks
+
+Deliverable
+
+Day 22-23
+
+Latency Optimization
+
+Parallelize: take screenshot + get a11y tree simultaneously. Cache element maps between steps. Reduce Gemini round trips with batched action prediction.
+
+2x speed improvement
+
+Day 24-25
+
+Prompt Engineering
+
+Systematic prompt ablation: which elements of the prompt most improve success rate. Build prompt library for 20 common task types.
+
+Optimized prompts
+
+Day 26-27
+
+Failure Mode Library
+
+Catalog every failure mode encountered. For each: root cause, detection pattern, recovery strategy. Build automated recovery for top 20 failures.
+
+RecoveryLibrary
+
+Day 28
+
+Developer UI
+
+Build debug dashboard: task graph visualization, step-by-step replay, annotated screenshot viewer, Gemini prompt/response log per step.
+
+Debug UI
+
+Day 29
+
+Regression Tests
+
+100 automated regression tests covering all discovered failure modes. CI pipeline to run on every code change. Alert on success rate drop.
+
+CI test pipeline
+
+Day 30
+
+10,000x Benchmark
+
+Run final benchmark: 100 diverse real-world tasks. Compare to Day 1 baseline. Document: tasks now possible that were impossible before. Publish results.
+
+Final benchmark
+
+
+
+4. Critical Fixes for Current Failures (Do These First)
+
+Before starting the day plan, fix these 3 issues that are causing your current simple task failures:
+
+
+
+FIX 1 — Stop using CSS selectors for clicking: Switch to: (1) get element bounding box from CDP, (2) click center coordinates using Input.dispatchMouseEvent. This alone fixes 60% of click failures on dynamic pages.
+
+
+
+FIX 2 — Stop waiting fixed timeouts: Replace all sleep(2000) with: waitForNetworkIdle(500ms) + waitForDOMStable(300ms). Use CDP Page.lifecycleEvent to know exactly when the page is ready.
+
+
+
+FIX 3 — Start using Accessibility Tree: Call Accessibility.getFullAXTree() every time before asking Gemini what to do. Feed it the role + name + value of each interactive element instead of raw HTML. Gemini will immediately make better decisions.
+
+
+
+5. Gemini Prompting Strategy
+
+5.1  Two-Model Architecture
+
+Use two Gemini models with different roles for optimal speed and quality:
+
+Flash: Gemini 2.0 Flash — Action selection. Fast, cheap. 'Given this page, what element do I click next?'
+
+Pro: Gemini 2.5 Pro — Task planning and re-planning. Expensive, smart. 'Decompose this goal. Re-plan after this failure.'
+
+
+
+5.2  Prompt Structure for Action Selection
+
+SYSTEM: You are a browser automation agent. You see a numbered screenshot and an element manifest. Your job is to select the next action to complete the current step. Always respond with valid JSON only: {"elementId": number, "action": "click|type|scroll|wait", "value": "string or null", "confidence": 0-1, "reasoning": "brief explanation"}.
+
+
+
+USER TURN: [annotated screenshot image] | Element manifest: [{id:1, role:'button', name:'Blank form', bbox:[x,y,w,h]}, ...] | Current step: 'Click the button to create a new blank Google Form' | Previous actions: [] | Last error: none
+
+
+
+5.3  Few-Shot Examples to Include
+
+Include 3-5 examples in your system prompt for common patterns:
+
+How to identify a submit button even when it's labeled 'Next', 'Continue', or 'Done'
+
+How to handle a dropdown — click to open, then click the option
+
+How to fill a date picker — click field, type date, press Enter or click calendar day
+
+How to detect and dismiss modal dialogs before continuing
+
+
+
+6. Success Metrics & Milestones
+
+Milestone
+
+Target
+
+Benchmark Tasks
+
+Key Capability Unlocked
+
+End of Week 1
+
+Simple tasks: 90% success
+
+Google Form create, web form fill, search + click
+
+Reliable perception + action
+
+End of Week 2
+
+Medium tasks: 75% success
+
+Multi-step booking, GitHub issue, email compose
+
+Task planning + state tracking
+
+End of Week 3
+
+Complex tasks: 60% success
+
+Multi-tab research, OAuth flows, dynamic SPAs
+
+Cross-tab + auth + human handoff
+
+End of Week 4
+
+All task types: 85%+ success
+
+100-task diverse benchmark suite
+
+Full 10,000x capability achieved
+
+
+
+START WITH THE 3 CRITICAL FIXES ON PAGE 3
+
+Then follow the day plan. The goal is not more AI calls — it is better page understanding.
+
+Fix perception → Fix planning → Fix recovery → 10,000x capability
+

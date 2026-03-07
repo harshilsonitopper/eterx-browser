@@ -1,0 +1,1 @@
+electron/BrowserAgentService.ts(240,125): error TS2304: Cannot find name 'currentUrl'.

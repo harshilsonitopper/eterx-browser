@@ -1,0 +1,9 @@
+{
+  "name": "EterX Browser",
+  "description": "A next-generation, AI-powered browser interface featuring a sleek dark mode, integrated Gemini assistant, and split-view capabilities.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera",
+    "geolocation"
+  ]
+}
