@@ -14,6 +14,7 @@ import { ShortcutsPage } from './components/ShortcutsPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import SmartSidebar from './components/SmartSidebar';
 import { AssistantTab } from './components/AssistantTab';
+import { EterXUI } from './components/EterXUI';
 import { CustomizePanel } from './components/CustomizePanel';
 import { Tab, HistoryItem, Bookmark } from './types';
 import { StorageService } from './services/StorageService';
@@ -49,6 +50,7 @@ import { LayoutPicker } from './components/LayoutPicker';
 import { LayoutState, DEFAULT_LAYOUT_STATE, LayoutMode } from './types/layout';
 import { CommandPalette, CommandAction } from './components/CommandPalette';
 import { AIControlBar } from './components/AIControlBar';
+import { QuickLinksAlgorithm } from './services/QuickLinksAlgorithm';
 import { LiveAgentOverlay } from './components/LiveAgentOverlay';
 import { StatusConsole } from './components/StatusConsole'; // Debug Console
 import { Columns, Grid3X3, Layers, Monitor, Move, Plus, Sidebar, Sun, Moon, Palette, Settings, LayoutTemplate, Bot, Zap, StopCircle } from 'lucide-react';
@@ -1426,7 +1428,7 @@ const App: React.FC = () => {
                 return;
             }
             lastTabRequestRef.current = { url, time: now };
-            
+
             console.log(`[App] Received app:open-new-tab for: ${ url }`);
             handleNewTabRef.current(url);
         };
@@ -1689,6 +1691,13 @@ Analyze the attached screenshot and respond helpfully.`;
                                 currentTabTitle={tab.title}
                             />;
                         }
+                        if (url === 'eterx://workspace' || url.startsWith('eterx://workspace')) {
+                            return <EterXUI
+                                onNavigate={handleNavigate}
+                                onOpenNewTab={(u) => handleNewTab(u)}
+                                onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+                            />;
+                        }
                         return (
                             <NewTab
                                 onNavigate={handleNavigate}
@@ -1742,7 +1751,12 @@ Analyze the attached screenshot and respond helpfully.`;
                                         setTabs(prev => prev.map(t => t.id === tab.id ? { ...t, title: e.title || t.title } : t));
                                         if (tab.id === activeTabIdRef.current) {
                                             const currentTab = tabsRef.current.find(t => t.id === tab.id);
-                                            addToHistory(currentTab?.url || tab.url, e.title);
+                                            const url = currentTab?.url || tab.url;
+                                            addToHistory(url, e.title);
+                                            // 🧠 Deep Track into Algorithm
+                                            if (!url.startsWith('eterx://') && !url.startsWith('chrome://')) {
+                                                QuickLinksAlgorithm.getInstance().recordVisit(url, e.title, currentTab?.favicon);
+                                            }
                                         }
                                     };
                                     const onDidStartLoading = () => setTabs(prev => prev.map(t => t.id === tab.id ? { ...t, isLoading: true } : t));
@@ -1753,6 +1767,13 @@ Analyze the attached screenshot and respond helpfully.`;
                                             // The array is often sorted smallest to largest, or the last items are apple-touch-icons
                                             const bestFavicon = e.favicons[e.favicons.length - 1];
                                             setTabs(prev => prev.map(t => t.id === tab.id ? { ...t, favicon: bestFavicon } : t));
+
+                                            // Deep update the algorithm with the exact highest-res favicon we just found
+                                            const currentTab = tabsRef.current.find(t => t.id === tab.id);
+                                            const url = currentTab?.url || tab.url;
+                                            if (!url.startsWith('eterx://') && !url.startsWith('chrome://')) {
+                                                QuickLinksAlgorithm.getInstance().recordVisit(url, currentTab?.title || tab.title, bestFavicon);
+                                            }
                                         }
                                     };
 

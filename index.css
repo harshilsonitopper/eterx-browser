@@ -156,6 +156,17 @@ body {
 }
 
 /* === UTILITIES & ANIMATIONS === */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
 .glass-panel {
   background: var(--bg-glass-panel);
   backdrop-filter: blur(40px) saturate(140%);
