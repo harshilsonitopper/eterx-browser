@@ -352,7 +352,7 @@ export class YouTubeService {
 
         // Method 3: Try innertube API
         try {
-            const innertubeUrl = `https://www.youtube.com/youtubei/v1/get_transcript?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8`;
+            const innertubeUrl = `https://www.youtube.com/youtubei/v1/get_transcript?key=your api key`;
             const innertubeBody = {
                 context: {
                     client: { clientName: "WEB", clientVersion: "2.20240101.00.00" }
